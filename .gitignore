@@ -1,0 +1,14 @@
+# R
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# shinylive build output (rebuilt automatically by the GitHub Actions workflow)
+/site/
+/docs/
+
+# OS junk
+.DS_Store
+Thumbs.db
