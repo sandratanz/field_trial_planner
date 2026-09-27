@@ -145,11 +145,11 @@ project_overview_ui <- function() {
       "Complete this section once for the whole project. It gives AAGI the context for every trial described in later sections."),
     fluidRow(
       column(6,
-        textInput("proj_title", "Project title",
-                  placeholder = "e.g. Optimising nitrogen and sowing strategies for wheat productivity in the WA central grainbelt"),
+        textAreaInput("proj_title", "Project title", rows = 2,
+                      placeholder = "e.g. Optimising nitrogen and sowing strategies for wheat productivity in the WA central grainbelt"),
         textInput("proj_id", "Project number / ID", placeholder = "e.g. WGRG-2026-014"),
-        textInput("proj_pi", "Principal investigator / research group",
-                  placeholder = "Name(s) and contact details of the lead researcher(s) or research group")
+        textAreaInput("proj_pi", "Principal investigator / research group", rows = 2,
+                      placeholder = "Name(s) and contact details of the lead researcher(s) or research group")
       ),
       column(6,
         textInput("proj_form_by", "Form completed by", placeholder = "If different from the lead researcher"),
@@ -778,9 +778,9 @@ server <- function(input, output, session) {
     rv$implementation <- state$implementation %||% empty_implementation()
 
     proj <- state$project %||% list()
-    updateTextInput(session, "proj_title", value = proj$title %||% "")
+  updateTextAreaInput(session, "proj_title", value = proj$title %||% "")
     updateTextInput(session, "proj_id", value = proj$id %||% "")
-    updateTextInput(session, "proj_pi", value = proj$pi %||% "")
+  updateTextAreaInput(session, "proj_pi", value = proj$pi %||% "")
     updateTextInput(session, "proj_form_by", value = proj$form_by %||% "")
     updateTextInput(session, "proj_email", value = proj$email %||% "")
     updateTextAreaInput(session, "proj_objective", value = proj$objective %||% "")
