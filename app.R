@@ -145,17 +145,18 @@ project_overview_ui <- function() {
       "Complete this section once for the whole project. It gives AAGI the context for every trial described in later sections."),
     fluidRow(
       column(6,
-        textAreaInput("proj_title", "Project title", rows = 2,
+        textAreaInput("proj_title", "Project title", rows = 3,
                       placeholder = "e.g. Optimising nitrogen and sowing strategies for wheat productivity in the WA central grainbelt"),
         textInput("proj_id", "Project number / ID", placeholder = "e.g. WGRG-2026-014"),
-        textAreaInput("proj_pi", "Principal investigator / research group", rows = 2,
-                      placeholder = "Name(s) and contact details of the lead researcher(s) or research group")
-      ),
-      column(6,
-        textInput("proj_form_by", "Form completed by", placeholder = "If different from the lead researcher"),
-        textInput("proj_email", "Contact email", placeholder = "Best email address for questions about this form"),
         textAreaInput("proj_objective", "Overall project objective", rows = 4,
                       placeholder = "The broad goal or intended outcome of the project")
+      ),
+      column(6,
+        textAreaInput("proj_pi", "Principal investigator / lead researcher(s)", rows = 2,
+                      placeholder = "Name(s) and contact details of the lead researcher(s)"),
+        textInput("proj_group", "Research group", placeholder = "Research group or team name"),
+        textInput("proj_form_by", "Form completed by", placeholder = "Name of person completing this form"),
+        textInput("proj_email", "Contact email", placeholder = "Best email address for questions about this form and follow-up contact")
       )
     )
   )
@@ -173,12 +174,16 @@ trials_ui <- function() {
       ),
       fluidRow(
         column(4, selectInput("trial_design_support_in", "Design support requested", choices = design_support_choices)),
-        column(4, selectInput("trial_analysis_support_in", "Analysis support requested", choices = analysis_support_choices)),
-        column(4, br(), actionButton("add_trial", "Add trial", class = "btn-primary", icon = icon("plus")))
+        column(4, selectInput("trial_analysis_support_in", "Analysis support requested", choices = analysis_support_choices))
+      ),
+      fluidRow(
+        column(12, actionButton("add_trial", "Add trial", class = "btn-primary", icon = icon("plus")))
       )
     ),
     div(class = "table-block",
         DTOutput("trials_table"), br(),
+        actionButton("edit_trial", "Edit selected trial", class = "btn-warning"),
+        " ",
         actionButton("remove_trial", "Remove selected trial(s)", class = "btn-danger")
     )
   )
@@ -192,13 +197,17 @@ factors_ui <- function() {
       fluidRow(
         column(4, uiOutput("factor_trial_select")),
         column(4, textInput("factor_name_in", "Factor name", placeholder = "e.g. Nitrogen rate")),
-        column(2, numericInput("factor_nlevels_in", "Number of levels", value = 2, min = 2, max = 12, step = 1)),
-        column(2, br(), actionButton("add_factor", "Add factor", class = "btn-primary", icon = icon("plus")))
+        column(2, numericInput("factor_nlevels_in", "Number of levels", value = 2, min = 2, max = 12, step = 1))
+      ),
+      fluidRow(
+        column(12, actionButton("add_factor", "Add factor", class = "btn-primary", icon = icon("plus")))
       )
     ),
     div(class = "table-block",
         h4("Table 1: Factors"),
         DTOutput("factors_table"), br(),
+      actionButton("edit_factor", "Edit selected factor", class = "btn-warning"),
+      " ",
         actionButton("remove_factor", "Remove selected factor(s)", class = "btn-danger")
     ),
     hr(),
@@ -237,6 +246,8 @@ responses_ui <- function() {
     ),
     div(class = "table-block",
         DTOutput("responses_table"), br(),
+        actionButton("edit_response", "Edit selected response", class = "btn-warning"),
+        " ",
         actionButton("remove_response", "Remove selected response(s)", class = "btn-danger")
     )
   )
@@ -254,13 +265,17 @@ questions_ui <- function() {
         column(3, selectInput("question_want_in", "What you want to know", choices = want_to_know_choices))
       ),
       fluidRow(
-        column(9, uiOutput("question_factors_select")),
-        column(3, br(), actionButton("add_question", "Add question", class = "btn-primary", icon = icon("plus")))
+        column(12, uiOutput("question_factors_select"))
+      ),
+      fluidRow(
+        column(12, actionButton("add_question", "Add question", class = "btn-primary", icon = icon("plus")))
       ),
       uiOutput("question_preview")
     ),
     div(class = "table-block",
         DTOutput("questions_table"), br(),
+        actionButton("edit_question", "Edit selected question", class = "btn-warning"),
+        " ",
         actionButton("remove_question", "Remove selected question(s)", class = "btn-danger")
     )
   )
@@ -287,6 +302,8 @@ implementation_ui <- function() {
     ),
     div(class = "table-block",
         DTOutput("implementation_table"), br(),
+        actionButton("edit_impl", "Edit selected implementation", class = "btn-warning"),
+        " ",
         actionButton("remove_impl", "Remove selected implementation(s)", class = "btn-danger")
     )
   )
@@ -377,6 +394,30 @@ save_load_ui <- function() {
 # UI
 # ------------------------------------------------------------
 
+tab_order <- c(
+  "1. Project Overview",
+  "2. Trials",
+  "3. Factors & Levels",
+  "4. Responses",
+  "5. Questions",
+  "6. Implementation",
+  "7. Summary",
+  "8. Roles & Sign-off",
+  "9. Save, Load & Download"
+)
+
+page_numbers <- c(
+  "1. Project Overview" = 1,
+  "2. Trials" = 2,
+  "3. Factors & Levels" = 3,
+  "4. Responses" = 4,
+  "5. Questions" = 5,
+  "6. Implementation" = 6,
+  "7. Summary" = 7,
+  "8. Roles & Sign-off" = 8,
+  "9. Save, Load & Download" = 9
+)
+
 ui <- fluidPage(
   title = "Field Trial Planner (GRDC-West)",
   tags$head(tags$style(HTML("
@@ -386,6 +427,51 @@ ui <- fluidPage(
     .section-help { color: #666; font-size: 13px; margin-bottom: 14px; }
     .table-block { margin-top: 18px; }
     .well { background-color: #fafafa; }
+    .form-group input, .form-group textarea, .form-group .selectize-input,
+    .shiny-input-container { width: 100% !important; }
+    .form-group textarea { min-height: 90px; }
+    #shiny-notification-panel,
+    .shiny-notification-panel {
+      position: fixed !important;
+      inset: 16px 16px auto auto !important;
+      top: 16px !important;
+      right: 16px !important;
+      bottom: auto !important;
+      left: auto !important;
+      width: 360px;
+      max-width: calc(100% - 32px);
+      z-index: 2050;
+    }
+    .bottom-nav {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 12px;
+      margin-top: 18px;
+      margin-bottom: 10px;
+      padding: 0;
+    }
+    .bottom-nav .left-controls,
+    .bottom-nav .center-controls,
+    .bottom-nav .right-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .bottom-nav .left-controls { margin-left: 0; margin-right: auto; }
+    .bottom-nav .center-controls { margin: 0 auto; }
+    .bottom-nav .right-controls { margin-left: auto; }
+    .bottom-nav .btn { min-width: 100px; }
+    .bottom-nav .page-index {
+      display: inline-block;
+      min-width: 50px;
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #f7f7f7;
+      font-weight: 600;
+      text-align: center;
+    }
   "))),
   div(class = "app-header",
       h2("Field Trial Planner"),
@@ -394,15 +480,16 @@ ui <- fluidPage(
   tabsetPanel(
     id = "main_tabs",
     tabPanel("1. Project Overview", br(), project_overview_ui()),
-    tabPanel("2.1 Trials", br(), trials_ui()),
-    tabPanel("2.2 Factors & Levels", br(), factors_ui()),
-    tabPanel("2.4 Responses", br(), responses_ui()),
-    tabPanel("2.5 Questions", br(), questions_ui()),
-    tabPanel("2.6 Implementation", br(), implementation_ui()),
-    tabPanel("2.7 Summary", br(), summary_ui()),
-    tabPanel("Roles & Sign-off", br(), roles_ui()),
-    tabPanel("Save, Load & Download", br(), save_load_ui(), hr(), download_ui())
-  )
+    tabPanel("2. Trials", br(), trials_ui()),
+    tabPanel("3. Factors & Levels", br(), factors_ui()),
+    tabPanel("4. Responses", br(), responses_ui()),
+    tabPanel("5. Questions", br(), questions_ui()),
+    tabPanel("6. Implementation", br(), implementation_ui()),
+    tabPanel("7. Summary", br(), summary_ui()),
+    tabPanel("8. Roles & Sign-off", br(), roles_ui()),
+    tabPanel("9. Save, Load & Download", br(), save_load_ui(), hr(), download_ui())
+  ),
+  uiOutput("bottom_nav")
 )
 
 # ------------------------------------------------------------
@@ -417,8 +504,65 @@ server <- function(input, output, session) {
     levels = empty_levels(),
     responses = empty_responses(),
     questions = empty_questions(),
-    implementation = empty_implementation()
+    implementation = empty_implementation(),
+    edit_trial_id = NULL,
+    edit_factor_key = NULL,
+    edit_response_key = NULL,
+    edit_question_idx = NULL,
+    edit_impl_idx = NULL
   )
+
+  next_trial_id <- function(existing_ids) {
+    if (length(existing_ids) == 0) return("T1")
+    nums <- suppressWarnings(as.integer(sub("^T", "", existing_ids)))
+    nums <- nums[!is.na(nums)]
+    next_num <- if (length(nums) == 0) length(existing_ids) + 1 else max(nums) + 1
+    paste0("T", next_num)
+  }
+
+  output$bottom_nav <- renderUI({
+    current <- if (is.null(input$main_tabs)) tab_order[1] else input$main_tabs
+    idx <- page_numbers[[current]]
+    idx <- if (is.na(idx)) 1 else idx
+    prev_disabled <- if (idx <= 1) "disabled" else NULL
+    next_disabled <- if (idx >= max(page_numbers)) "disabled" else NULL
+
+    left_controls <- if (idx < max(page_numbers)) {
+      div(class = "left-controls",
+          downloadButton("save_progress_bottom", "Save progress (.rds)", class = "btn-primary")
+      )
+    } else {
+      div(class = "left-controls")
+    }
+
+    div(class = "bottom-nav",
+        left_controls,
+        div(class = "center-controls",
+            actionButton("prev_tab", "Previous", disabled = !is.null(prev_disabled)),
+            span(class = "page-index", idx),
+            actionButton("next_tab", "Next", disabled = !is.null(next_disabled))
+        ),
+        div(class = "right-controls")
+    )
+  })
+
+  observeEvent(input$prev_tab, {
+    current <- if (is.null(input$main_tabs)) tab_order[1] else input$main_tabs
+    idx <- page_numbers[[current]]
+    if (!is.na(idx) && idx > 1) {
+      target <- names(page_numbers)[page_numbers == (idx - 1)]
+      if (length(target) > 0) updateTabsetPanel(session, "main_tabs", selected = target[1])
+    }
+  })
+
+  observeEvent(input$next_tab, {
+    current <- if (is.null(input$main_tabs)) tab_order[1] else input$main_tabs
+    idx <- page_numbers[[current]]
+    if (!is.na(idx) && idx < max(page_numbers)) {
+      target <- names(page_numbers)[page_numbers == (idx + 1)]
+      if (length(target) > 0) updateTabsetPanel(session, "main_tabs", selected = target[1])
+    }
+  })
 
   trial_choices <- reactive({
     if (nrow(rv$trials) == 0) return(character())
@@ -428,23 +572,52 @@ server <- function(input, output, session) {
   # ---------------- 2.1 Trials ----------------
   observeEvent(input$add_trial, {
     req(input$trial_name_in)
-    new_id <- paste0("T", nrow(rv$trials) + 1)
-    rv$trials <- rbind(rv$trials, data.frame(
-      trial_id = new_id,
-      trial_name = input$trial_name_in,
-      trial_aim = input$trial_aim_in,
-      design_support = input$trial_design_support_in,
-      analysis_support = input$trial_analysis_support_in,
-      stringsAsFactors = FALSE
-    ))
+    if (is.null(rv$edit_trial_id)) {
+      new_id <- next_trial_id(rv$trials$trial_id)
+      rv$trials <- rbind(rv$trials, data.frame(
+        trial_id = new_id,
+        trial_name = input$trial_name_in,
+        trial_aim = input$trial_aim_in,
+        design_support = input$trial_design_support_in,
+        analysis_support = input$trial_analysis_support_in,
+        stringsAsFactors = FALSE
+      ))
+    } else {
+      idx <- which(rv$trials$trial_id == rv$edit_trial_id)
+      edited <- data.frame(
+        trial_id = rv$edit_trial_id,
+        trial_name = input$trial_name_in,
+        trial_aim = input$trial_aim_in,
+        design_support = input$trial_design_support_in,
+        analysis_support = input$trial_analysis_support_in,
+        stringsAsFactors = FALSE
+      )
+      if (length(idx) == 1) rv$trials[idx, ] <- edited else rv$trials <- rbind(rv$trials, edited)
+      rv$edit_trial_id <- NULL
+      showNotification("Trial updated.", type = "message")
+    }
     updateTextInput(session, "trial_name_in", value = "")
     updateTextAreaInput(session, "trial_aim_in", value = "")
+  })
+
+  observeEvent(input$edit_trial, {
+    sel <- input$trials_table_rows_selected
+    if (length(sel) != 1) {
+      showNotification("Please select exactly one trial to edit.", type = "warning")
+      return(invisible())
+    }
+    row <- rv$trials[sel, , drop = FALSE]
+    rv$edit_trial_id <- row$trial_id
+    updateTextInput(session, "trial_name_in", value = row$trial_name)
+    updateTextAreaInput(session, "trial_aim_in", value = row$trial_aim)
+    updateSelectInput(session, "trial_design_support_in", selected = row$design_support)
+    updateSelectInput(session, "trial_analysis_support_in", selected = row$analysis_support)
   })
 
   output$trials_table <- renderDT({
     datatable(rv$trials, selection = "multiple", rownames = FALSE,
               colnames = c("Trial ID", "Trial Name", "Trial Aim", "Design Support", "Analysis Support"),
-              options = list(dom = "tp", pageLength = 10))
+              options = list(dom = "t", pageLength = 10))
   })
 
   observeEvent(input$remove_trial, {
@@ -466,13 +639,52 @@ server <- function(input, output, session) {
 
   observeEvent(input$add_factor, {
     req(input$factor_trial_in, input$factor_name_in)
-    rv$factors <- rbind(rv$factors, data.frame(
-      trial_id = input$factor_trial_in,
-      factor_name = input$factor_name_in,
-      n_levels = input$factor_nlevels_in,
-      stringsAsFactors = FALSE
-    ))
+    if (is.null(rv$edit_factor_key)) {
+      rv$factors <- rbind(rv$factors, data.frame(
+        trial_id = input$factor_trial_in,
+        factor_name = input$factor_name_in,
+        n_levels = input$factor_nlevels_in,
+        stringsAsFactors = FALSE
+      ))
+    } else {
+      old <- rv$edit_factor_key
+      idx <- which(rv$factors$trial_id == old$trial_id & rv$factors$factor_name == old$factor_name)
+      edited <- data.frame(
+        trial_id = input$factor_trial_in,
+        factor_name = input$factor_name_in,
+        n_levels = input$factor_nlevels_in,
+        stringsAsFactors = FALSE
+      )
+      if (length(idx) == 1) rv$factors[idx, ] <- edited else rv$factors <- rbind(rv$factors, edited)
+
+      key_changed <- old$trial_id != input$factor_trial_in || old$factor_name != input$factor_name_in
+      nlevels_changed <- old$n_levels != input$factor_nlevels_in
+      if (key_changed || nlevels_changed) {
+        rv$levels <- rv$levels[!(rv$levels$trial_id == old$trial_id &
+                                   rv$levels$factor_name == old$factor_name), , drop = FALSE]
+      }
+
+      rv$edit_factor_key <- NULL
+      showNotification("Factor updated.", type = "message")
+    }
     updateTextInput(session, "factor_name_in", value = "")
+  })
+
+  observeEvent(input$edit_factor, {
+    sel <- input$factors_table_rows_selected
+    if (length(sel) != 1) {
+      showNotification("Please select exactly one factor to edit.", type = "warning")
+      return(invisible())
+    }
+    row <- rv$factors[sel, , drop = FALSE]
+    rv$edit_factor_key <- list(
+      trial_id = row$trial_id,
+      factor_name = row$factor_name,
+      n_levels = row$n_levels
+    )
+    updateSelectInput(session, "factor_trial_in", selected = row$trial_id)
+    updateTextInput(session, "factor_name_in", value = row$factor_name)
+    updateNumericInput(session, "factor_nlevels_in", value = row$n_levels)
   })
 
   output$factors_table <- renderDT({
@@ -486,7 +698,7 @@ server <- function(input, output, session) {
     }
     datatable(df, selection = "multiple", rownames = FALSE,
               colnames = c("Trial", "Factor", "Number of Levels"),
-              options = list(dom = "tp", pageLength = 10))
+              options = list(dom = "t", pageLength = 10))
   })
 
   observeEvent(input$remove_factor, {
@@ -539,7 +751,7 @@ server <- function(input, output, session) {
   output$levels_table <- renderDT({
     datatable(rv$levels, rownames = FALSE,
               colnames = c("Trial ID", "Factor", "Level #", "Description"),
-              options = list(dom = "tp", pageLength = 10))
+              options = list(dom = "t", pageLength = 10))
   })
 
   # ---------------- 2.4 Responses ----------------
@@ -549,17 +761,44 @@ server <- function(input, output, session) {
 
   observeEvent(input$add_response, {
     req(input$response_trial_in, input$response_var_in)
-    rv$responses <- rbind(rv$responses, data.frame(
-      trial_id = input$response_trial_in,
-      response_var = input$response_var_in,
-      units = input$response_units_in,
-      data_type = input$response_datatype_in,
-      measurement_method = input$response_method_in,
-      sampling = input$response_sampling_in,
-      repeated_measures = input$response_repeated_in,
-      timing = input$response_timing_in,
-      stringsAsFactors = FALSE
-    ))
+    if (is.null(rv$edit_response_key)) {
+      rv$responses <- rbind(rv$responses, data.frame(
+        trial_id = input$response_trial_in,
+        response_var = input$response_var_in,
+        units = input$response_units_in,
+        data_type = input$response_datatype_in,
+        measurement_method = input$response_method_in,
+        sampling = input$response_sampling_in,
+        repeated_measures = input$response_repeated_in,
+        timing = input$response_timing_in,
+        stringsAsFactors = FALSE
+      ))
+    } else {
+      old <- rv$edit_response_key
+      idx <- which(rv$responses$trial_id == old$trial_id & rv$responses$response_var == old$response_var)
+      edited <- data.frame(
+        trial_id = input$response_trial_in,
+        response_var = input$response_var_in,
+        units = input$response_units_in,
+        data_type = input$response_datatype_in,
+        measurement_method = input$response_method_in,
+        sampling = input$response_sampling_in,
+        repeated_measures = input$response_repeated_in,
+        timing = input$response_timing_in,
+        stringsAsFactors = FALSE
+      )
+      if (length(idx) == 1) rv$responses[idx, ] <- edited else rv$responses <- rbind(rv$responses, edited)
+
+      key_changed <- old$trial_id != input$response_trial_in || old$response_var != input$response_var_in
+      if (key_changed) {
+        q_idx <- rv$questions$trial_id == old$trial_id & rv$questions$response_var == old$response_var
+        rv$questions$trial_id[q_idx] <- input$response_trial_in
+        rv$questions$response_var[q_idx] <- input$response_var_in
+      }
+
+      rv$edit_response_key <- NULL
+      showNotification("Response updated.", type = "message")
+    }
     updateTextInput(session, "response_var_in", value = "")
     updateTextInput(session, "response_units_in", value = "")
     updateTextAreaInput(session, "response_method_in", value = "")
@@ -567,11 +806,29 @@ server <- function(input, output, session) {
     updateTextInput(session, "response_timing_in", value = "")
   })
 
+  observeEvent(input$edit_response, {
+    sel <- input$responses_table_rows_selected
+    if (length(sel) != 1) {
+      showNotification("Please select exactly one response to edit.", type = "warning")
+      return(invisible())
+    }
+    row <- rv$responses[sel, , drop = FALSE]
+    rv$edit_response_key <- list(trial_id = row$trial_id, response_var = row$response_var)
+    updateSelectInput(session, "response_trial_in", selected = row$trial_id)
+    updateTextInput(session, "response_var_in", value = row$response_var)
+    updateTextInput(session, "response_units_in", value = row$units)
+    updateSelectInput(session, "response_datatype_in", selected = row$data_type)
+    updateTextAreaInput(session, "response_method_in", value = row$measurement_method)
+    updateTextAreaInput(session, "response_sampling_in", value = row$sampling)
+    updateSelectInput(session, "response_repeated_in", selected = row$repeated_measures)
+    updateTextInput(session, "response_timing_in", value = row$timing)
+  })
+
   output$responses_table <- renderDT({
     datatable(rv$responses, selection = "multiple", rownames = FALSE,
               colnames = c("Trial ID", "Response Variable", "Units", "Data Type",
                            "Measurement Method", "Sampling", "Repeated?", "Timing"),
-              options = list(dom = "tp", pageLength = 10, scrollX = TRUE))
+              options = list(dom = "t", pageLength = 10, scrollX = TRUE))
   })
 
   observeEvent(input$remove_response, {
@@ -628,7 +885,7 @@ server <- function(input, output, session) {
   observeEvent(input$add_question, {
     txt <- question_preview_text()
     req(txt, input$question_trial_in)
-    rv$questions <- rbind(rv$questions, data.frame(
+    edited <- data.frame(
       trial_id = input$question_trial_in,
       response_var = input$question_response_in,
       effect_type = input$question_effect_in,
@@ -636,14 +893,42 @@ server <- function(input, output, session) {
       want_to_know = input$question_want_in,
       question_text = txt,
       stringsAsFactors = FALSE
-    ))
+    )
+    if (is.null(rv$edit_question_idx)) {
+      rv$questions <- rbind(rv$questions, edited)
+    } else {
+      idx <- rv$edit_question_idx
+      if (!is.na(idx) && idx >= 1 && idx <= nrow(rv$questions)) rv$questions[idx, ] <- edited else rv$questions <- rbind(rv$questions, edited)
+      rv$edit_question_idx <- NULL
+      showNotification("Question updated.", type = "message")
+    }
+  })
+
+  observeEvent(input$edit_question, {
+    sel <- input$questions_table_rows_selected
+    if (length(sel) != 1) {
+      showNotification("Please select exactly one question to edit.", type = "warning")
+      return(invisible())
+    }
+    row <- rv$questions[sel, , drop = FALSE]
+    rv$edit_question_idx <- sel[1]
+
+    updateSelectInput(session, "question_trial_in", selected = row$trial_id)
+
+    factors_sel <- trimws(strsplit(row$factors_involved, ",")[[1]])
+    session$onFlushed(function() {
+      updateSelectInput(session, "question_response_in", selected = row$response_var)
+      updateSelectInput(session, "question_effect_in", selected = row$effect_type)
+      updateSelectInput(session, "question_want_in", selected = row$want_to_know)
+      updateSelectizeInput(session, "question_factors_in", selected = factors_sel)
+    }, once = TRUE)
   })
 
   output$questions_table <- renderDT({
     datatable(rv$questions, selection = "multiple", rownames = FALSE,
               colnames = c("Trial ID", "Response", "Effect Type", "Factor(s)",
                            "What You Want to Know", "Research Question"),
-              options = list(dom = "tp", pageLength = 10, scrollX = TRUE))
+              options = list(dom = "t", pageLength = 10, scrollX = TRUE))
   })
 
   observeEvent(input$remove_question, {
@@ -659,7 +944,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$add_impl, {
     req(input$impl_trial_in, input$impl_location_in, input$impl_year_in)
-    rv$implementation <- rbind(rv$implementation, data.frame(
+    edited <- data.frame(
       trial_id = input$impl_trial_in,
       location = input$impl_location_in,
       year = input$impl_year_in,
@@ -668,17 +953,42 @@ server <- function(input, output, session) {
       layout = input$impl_layout_in,
       notes = input$impl_notes_in,
       stringsAsFactors = FALSE
-    ))
+    )
+    if (is.null(rv$edit_impl_idx)) {
+      rv$implementation <- rbind(rv$implementation, edited)
+    } else {
+      idx <- rv$edit_impl_idx
+      if (!is.na(idx) && idx >= 1 && idx <= nrow(rv$implementation)) rv$implementation[idx, ] <- edited else rv$implementation <- rbind(rv$implementation, edited)
+      rv$edit_impl_idx <- NULL
+      showNotification("Implementation updated.", type = "message")
+    }
     updateTextInput(session, "impl_location_in", value = "")
     updateTextInput(session, "impl_year_in", value = "")
     updateTextInput(session, "impl_contact_in", value = "")
     updateTextAreaInput(session, "impl_notes_in", value = "")
   })
 
+  observeEvent(input$edit_impl, {
+    sel <- input$implementation_table_rows_selected
+    if (length(sel) != 1) {
+      showNotification("Please select exactly one implementation to edit.", type = "warning")
+      return(invisible())
+    }
+    row <- rv$implementation[sel, , drop = FALSE]
+    rv$edit_impl_idx <- sel[1]
+    updateSelectInput(session, "impl_trial_in", selected = row$trial_id)
+    updateTextInput(session, "impl_location_in", value = row$location)
+    updateTextInput(session, "impl_year_in", value = row$year)
+    updateTextInput(session, "impl_contact_in", value = row$contact)
+    updateNumericInput(session, "impl_reps_in", value = suppressWarnings(as.numeric(row$n_reps)))
+    updateSelectInput(session, "impl_layout_in", selected = row$layout)
+    updateTextAreaInput(session, "impl_notes_in", value = row$notes)
+  })
+
   output$implementation_table <- renderDT({
     datatable(rv$implementation, selection = "multiple", rownames = FALSE,
               colnames = c("Trial ID", "Location", "Year", "Contact", "Replicates", "Layout", "Notes"),
-              options = list(dom = "tp", pageLength = 10, scrollX = TRUE))
+              options = list(dom = "t", pageLength = 10, scrollX = TRUE))
   })
 
   observeEvent(input$remove_impl, {
@@ -730,7 +1040,7 @@ server <- function(input, output, session) {
   })
 
   output$summary_table <- renderDT({
-    datatable(summary_df(), rownames = FALSE, options = list(dom = "tp", pageLength = 10, scrollX = TRUE))
+    datatable(summary_df(), rownames = FALSE, options = list(dom = "t", pageLength = 10, scrollX = TRUE))
   })
 
   # ---------------- Save / Load progress ----------------
@@ -752,6 +1062,17 @@ server <- function(input, output, session) {
   }
 
   output$save_progress <- downloadHandler(
+    filename = function() {
+      title <- input$proj_title
+      safe <- if (!is.null(title) && nzchar(title)) gsub("[^A-Za-z0-9]+", "_", title) else "Field_Trial_Plan"
+      paste0("FTP_progress_", safe, "_", format(Sys.Date(), "%Y%m%d"), ".rds")
+    },
+    content = function(file) {
+      saveRDS(get_state(), file)
+    }
+  )
+
+  output$save_progress_bottom <- downloadHandler(
     filename = function() {
       title <- input$proj_title
       safe <- if (!is.null(title) && nzchar(title)) gsub("[^A-Za-z0-9]+", "_", title) else "Field_Trial_Plan"
@@ -820,20 +1141,20 @@ server <- function(input, output, session) {
       )
 
       write_sheet("1. Project Overview", po)
-      write_sheet("2.1 Trials", rv$trials,
+      write_sheet("2. Trials", rv$trials,
                   c("Trial ID", "Trial Name", "Trial Aim", "Design Support Requested", "Analysis Support Requested"))
-      write_sheet("2.2 Factors", rv$factors, c("Trial ID", "Factor", "Number of Levels"))
-      write_sheet("2.3 Levels", rv$levels, c("Trial ID", "Factor", "Level #", "Level Description"))
-      write_sheet("2.4 Responses", rv$responses,
+      write_sheet("3. Factors", rv$factors, c("Trial ID", "Factor", "Number of Levels"))
+      write_sheet("4. Levels", rv$levels, c("Trial ID", "Factor", "Level #", "Level Description"))
+      write_sheet("5. Responses", rv$responses,
                   c("Trial ID", "Response Variable", "Units", "Data Type", "Measurement Method",
                     "Sampling Within Experimental Unit", "Repeated Measures?", "Measurement Timing"))
-      write_sheet("2.5 Questions", rv$questions,
+      write_sheet("6. Questions", rv$questions,
                   c("Trial ID", "Response Variable", "Effect Type", "Factor(s) Involved",
                     "What You Want to Know", "Research Question"))
-      write_sheet("2.6 Implementation", rv$implementation,
+      write_sheet("7. Implementation", rv$implementation,
                   c("Trial ID", "Location", "Year", "Implementation Contact", "Number of Replicates",
                     "Experimental Layout", "Notes or Deviations"))
-      write_sheet("2.7 Summary", summary_df(),
+      write_sheet("8. Summary", summary_df(),
                   c("Trial ID", "Trial Name", "Implementations", "Designs", "Analyses", "Multi-factor",
                     "Interaction", "Multi-site", "Non-standard Response", "Split/Strip Layout",
                     "Complexity", "Design Support Requested", "Analysis Support Requested",
@@ -843,7 +1164,7 @@ server <- function(input, output, session) {
         Name = input$signoff_name, Role = input$signoff_role, Date = input$signoff_date,
         stringsAsFactors = FALSE
       )
-      write_sheet("3. Sign-off", so)
+      write_sheet("9. Roles & Sign-off", so)
 
       saveWorkbook(wb, file, overwrite = TRUE)
     }
