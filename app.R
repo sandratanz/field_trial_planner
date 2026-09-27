@@ -1179,12 +1179,18 @@ server <- function(input, output, session) {
     so <- data.frame(
       Name = input$signoff_name, Role = input$signoff_role, Date = input$signoff_date,
       stringsAsFactors = FALSE
-      )
-      write_sheet("9. Roles & Sign-off", so)
+    )
+    write_sheet("9. Roles & Sign-off", so)
 
-      saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
+    tmp <- tempfile(fileext = ".xlsx")
+    on.exit(unlink(tmp), add = TRUE)
+    saveWorkbook(wb, tmp, overwrite = TRUE)
+    trigger_browser_download(
+      build_download_filename("ACP_", ".xlsx"),
+      readBin(tmp, "raw", file.info(tmp)$size),
+      mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+  })
 }
 
 shinyApp(ui = ui, server = server)
