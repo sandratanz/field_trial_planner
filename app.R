@@ -1067,7 +1067,8 @@ server <- function(input, output, session) {
       version = 1,
       project = list(
         title = input$proj_title, id = input$proj_id, pi = input$proj_pi,
-        form_by = input$proj_form_by, email = input$proj_email, objective = input$proj_objective
+        group = input$proj_group, form_by = input$proj_form_by,
+        email = input$proj_email, objective = input$proj_objective
       ),
       trials = rv$trials,
       factors = rv$factors,
@@ -1121,9 +1122,10 @@ server <- function(input, output, session) {
     rv$implementation <- state$implementation %||% empty_implementation()
 
     proj <- state$project %||% list()
-  updateTextAreaInput(session, "proj_title", value = proj$title %||% "")
+    updateTextAreaInput(session, "proj_title", value = proj$title %||% "")
     updateTextInput(session, "proj_id", value = proj$id %||% "")
-  updateTextAreaInput(session, "proj_pi", value = proj$pi %||% "")
+    updateTextAreaInput(session, "proj_pi", value = proj$pi %||% "")
+    updateTextInput(session, "proj_group", value = proj$group %||% "")
     updateTextInput(session, "proj_form_by", value = proj$form_by %||% "")
     updateTextInput(session, "proj_email", value = proj$email %||% "")
     updateTextAreaInput(session, "proj_objective", value = proj$objective %||% "")
@@ -1149,10 +1151,10 @@ server <- function(input, output, session) {
     }
 
     po <- data.frame(
-      Field = c("Project title", "Project number / ID", "Principal investigator / research group",
-                "Form completed by", "Contact email", "Overall project objective"),
+      Field = c("Project title", "Project number / ID", "Principal investigator / lead researcher(s)",
+                "Research group", "Form completed by", "Contact email", "Overall project objective"),
       Response = c(input$proj_title, input$proj_id, input$proj_pi,
-                   input$proj_form_by, input$proj_email, input$proj_objective),
+                   input$proj_group, input$proj_form_by, input$proj_email, input$proj_objective),
       stringsAsFactors = FALSE
     )
 
