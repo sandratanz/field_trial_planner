@@ -363,7 +363,7 @@ roles_ui <- function() {
 download_ui <- function() {
   tagList(
     p("Download the completed Analytics Collaboration Plan as an Excel workbook, structured to match AAGI's ACP format, ready to send to your AAGI contact."),
-    downloadButton("download_acp", "Download ACP (.xlsx)", class = "btn-success btn-lg")
+    actionButton("download_acp_click", "Download ACP (.xlsx)", class = "btn-success btn-lg")
   )
 }
 
@@ -375,7 +375,7 @@ save_load_ui <- function() {
         wellPanel(
           h4("Save progress"),
           p(class = "section-help", "Downloads a single file with everything entered so far across all tabs."),
-          downloadButton("save_progress", "Save progress (.rds)", class = "btn-primary")
+          actionButton("save_progress_click", "Save progress (.rds)", class = "btn-primary")
         )
       ),
       column(6,
@@ -473,6 +473,24 @@ ui <- fluidPage(
       text-align: center;
     }
   "))),
+  tags$script(HTML("
+    Shiny.addCustomMessageHandler('download_blob', function(msg) {
+      const hex = msg.data || '';
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+      }
+      const blob = new Blob([bytes], { type: msg.type || 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = msg.filename || 'download';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    });
+  ")),
   div(class = "app-header",
       h2("Field Trial Planner"),
       p("GRDC-West \u2014 Analytics Collaboration Plan (ACP) intake tool. Complete each section, then download the completed plan for AAGI.")
@@ -529,7 +547,7 @@ server <- function(input, output, session) {
 
     left_controls <- if (idx < max(page_numbers)) {
       div(class = "left-controls",
-          downloadButton("save_progress_bottom", "Save progress (.rds)", class = "btn-primary")
+          actionButton("save_progress_click", "Save progress (.rds)", class = "btn-primary")
       )
     } else {
       div(class = "left-controls")
@@ -1061,27 +1079,31 @@ server <- function(input, output, session) {
     )
   }
 
-  output$save_progress <- downloadHandler(
-    filename = function() {
-      title <- input$proj_title
-      safe <- if (!is.null(title) && nzchar(title)) gsub("[^A-Za-z0-9]+", "_", title) else "Field_Trial_Plan"
-      paste0("FTP_progress_", safe, "_", format(Sys.Date(), "%Y%m%d"), ".rds")
-    },
-    content = function(file) {
-      saveRDS(get_state(), file)
-    }
-  )
+  build_download_filename <- function(prefix, ext) {
+    title <- input$proj_title
+    safe <- if (!is.null(title) && nzchar(title)) gsub("[^A-Za-z0-9]+", "_", title) else "Field_Trial_Plan"
+    paste0(prefix, safe, "_", format(Sys.Date(), "%Y%m%d"), ext)
+  }
 
-  output$save_progress_bottom <- downloadHandler(
-    filename = function() {
-      title <- input$proj_title
-      safe <- if (!is.null(title) && nzchar(title)) gsub("[^A-Za-z0-9]+", "_", title) else "Field_Trial_Plan"
-      paste0("FTP_progress_", safe, "_", format(Sys.Date(), "%Y%m%d"), ".rds")
-    },
-    content = function(file) {
-      saveRDS(get_state(), file)
-    }
-  )
+  trigger_browser_download <- function(filename, raw_bytes, mime_type = "application/octet-stream") {
+    hex <- paste(sprintf("%02x", as.integer(raw_bytes)), collapse = "")
+    session$sendCustomMessage("download_blob", list(
+      filename = filename,
+      data = hex,
+      type = mime_type
+    ))
+  }
+
+  observeEvent(input$save_progress_click, {
+    tmp <- tempfile(fileext = ".rds")
+    on.exit(unlink(tmp), add = TRUE)
+    saveRDS(get_state(), tmp)
+    trigger_browser_download(
+      build_download_filename("FTP_progress_", ".rds"),
+      readBin(tmp, "raw", file.info(tmp)$size),
+      mime_type = "application/rds"
+    )
+  })
 
   observeEvent(input$load_progress_file, {
     req(input$load_progress_file)
@@ -1115,54 +1137,48 @@ server <- function(input, output, session) {
   })
 
   # ---------------- Download ----------------
-  output$download_acp <- downloadHandler(
-    filename = function() {
-      title <- input$proj_title
-      safe <- if (!is.null(title) && nzchar(title)) gsub("[^A-Za-z0-9]+", "_", title) else "Field_Trial_Plan"
-      paste0("ACP_", safe, "_", format(Sys.Date(), "%Y%m%d"), ".xlsx")
-    },
-    content = function(file) {
-      wb <- createWorkbook()
-      hs <- createStyle(textDecoration = "bold", fgFill = "#DCE6F1", border = "Bottom")
+  observeEvent(input$download_acp_click, {
+    wb <- createWorkbook()
+    hs <- createStyle(textDecoration = "bold", fgFill = "#DCE6F1", border = "Bottom")
 
-      write_sheet <- function(name, df, display_names = NULL) {
-        addWorksheet(wb, name)
-        if (!is.null(display_names) && ncol(df) == length(display_names)) names(df) <- display_names
-        writeData(wb, name, df, headerStyle = hs)
-        if (ncol(df) > 0) setColWidths(wb, name, cols = 1:ncol(df), widths = "auto")
-      }
+    write_sheet <- function(name, df, display_names = NULL) {
+      addWorksheet(wb, name)
+      if (!is.null(display_names) && ncol(df) == length(display_names)) names(df) <- display_names
+      writeData(wb, name, df, headerStyle = hs)
+      if (ncol(df) > 0) setColWidths(wb, name, cols = 1:ncol(df), widths = "auto")
+    }
 
-      po <- data.frame(
-        Field = c("Project title", "Project number / ID", "Principal investigator / research group",
-                  "Form completed by", "Contact email", "Overall project objective"),
-        Response = c(input$proj_title, input$proj_id, input$proj_pi,
-                     input$proj_form_by, input$proj_email, input$proj_objective),
-        stringsAsFactors = FALSE
-      )
+    po <- data.frame(
+      Field = c("Project title", "Project number / ID", "Principal investigator / research group",
+                "Form completed by", "Contact email", "Overall project objective"),
+      Response = c(input$proj_title, input$proj_id, input$proj_pi,
+                   input$proj_form_by, input$proj_email, input$proj_objective),
+      stringsAsFactors = FALSE
+    )
 
-      write_sheet("1. Project Overview", po)
-      write_sheet("2. Trials", rv$trials,
-                  c("Trial ID", "Trial Name", "Trial Aim", "Design Support Requested", "Analysis Support Requested"))
-      write_sheet("3. Factors", rv$factors, c("Trial ID", "Factor", "Number of Levels"))
-      write_sheet("4. Levels", rv$levels, c("Trial ID", "Factor", "Level #", "Level Description"))
-      write_sheet("5. Responses", rv$responses,
-                  c("Trial ID", "Response Variable", "Units", "Data Type", "Measurement Method",
-                    "Sampling Within Experimental Unit", "Repeated Measures?", "Measurement Timing"))
-      write_sheet("6. Questions", rv$questions,
-                  c("Trial ID", "Response Variable", "Effect Type", "Factor(s) Involved",
-                    "What You Want to Know", "Research Question"))
-      write_sheet("7. Implementation", rv$implementation,
-                  c("Trial ID", "Location", "Year", "Implementation Contact", "Number of Replicates",
-                    "Experimental Layout", "Notes or Deviations"))
-      write_sheet("8. Summary", summary_df(),
-                  c("Trial ID", "Trial Name", "Implementations", "Designs", "Analyses", "Multi-factor",
-                    "Interaction", "Multi-site", "Non-standard Response", "Split/Strip Layout",
-                    "Complexity", "Design Support Requested", "Analysis Support Requested",
-                    "Attention", "Complexity Drivers"))
+    write_sheet("1. Project Overview", po)
+    write_sheet("2. Trials", rv$trials,
+                c("Trial ID", "Trial Name", "Trial Aim", "Design Support Requested", "Analysis Support Requested"))
+    write_sheet("3. Factors", rv$factors, c("Trial ID", "Factor", "Number of Levels"))
+    write_sheet("4. Levels", rv$levels, c("Trial ID", "Factor", "Level #", "Level Description"))
+    write_sheet("5. Responses", rv$responses,
+                c("Trial ID", "Response Variable", "Units", "Data Type", "Measurement Method",
+                  "Sampling Within Experimental Unit", "Repeated Measures?", "Measurement Timing"))
+    write_sheet("6. Questions", rv$questions,
+                c("Trial ID", "Response Variable", "Effect Type", "Factor(s) Involved",
+                  "What You Want to Know", "Research Question"))
+    write_sheet("7. Implementation", rv$implementation,
+                c("Trial ID", "Location", "Year", "Implementation Contact", "Number of Replicates",
+                  "Experimental Layout", "Notes or Deviations"))
+    write_sheet("8. Summary", summary_df(),
+                c("Trial ID", "Trial Name", "Implementations", "Designs", "Analyses", "Multi-factor",
+                  "Interaction", "Multi-site", "Non-standard Response", "Split/Strip Layout",
+                  "Complexity", "Design Support Requested", "Analysis Support Requested",
+                  "Attention", "Complexity Drivers"))
 
-      so <- data.frame(
-        Name = input$signoff_name, Role = input$signoff_role, Date = input$signoff_date,
-        stringsAsFactors = FALSE
+    so <- data.frame(
+      Name = input$signoff_name, Role = input$signoff_role, Date = input$signoff_date,
+      stringsAsFactors = FALSE
       )
       write_sheet("9. Roles & Sign-off", so)
 
